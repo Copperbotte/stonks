@@ -53,7 +53,7 @@ def make_ema(t, p, s=3600): #1 hour default ema
         ema.append(e)
     return ema
 
-def plots(data):
+def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4):
     #split xy coords
     np_data = np.array(data)
     times, prices = np_data[:,0], np_data[:,1]
@@ -64,12 +64,17 @@ def plots(data):
     #plot raw
     plt.plot(times, l_prices)
 
-    #generate ema
-    ema = make_ema(times, prices, s=3600*24*7) # 1 week ema
-    ema = make_log(ema)
+    #generate ema fast and slow
+    fast = make_ema(times, prices, s=macdFast) # 1 week ema
+    slow = make_ema(times, prices, s=macdSlow) # 1 month ema
 
-    #plot ema
-    plt.plot(times, ema)
+    #to log
+    l_fast = make_log(fast)
+    l_slow = make_log(slow)
+
+    #plot ema fast and slow
+    plt.plot(times, l_fast)
+    plt.plot(times, l_slow)
     plt.show()
     
 
