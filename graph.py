@@ -53,28 +53,41 @@ def make_ema(t, p, s=3600): #1 hour default ema
         ema.append(e)
     return ema
 
-def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4):
+def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     #split xy coords
     np_data = np.array(data)
     times, prices = np_data[:,0], np_data[:,1]
     
-    #process to log
-    l_prices = make_log(prices)
-
-    #plot raw
-    plt.plot(times, l_prices)
-
     #generate ema fast and slow
     fast = make_ema(times, prices, s=macdFast) # 1 week ema
     slow = make_ema(times, prices, s=macdSlow) # 1 month ema
 
+    #generate macd from lag
+    cd = np.array(fast) - np.array(slow)
+    ma = make_ema(times, cd, s=macdLag)
+    macd = cd - ma
+
     #to log
+    l_prices = make_log(prices)
     l_fast = make_log(fast)
     l_slow = make_log(slow)
 
+    #plot
+    fig, ax = plt.subplots(2,1, sharex='col')
+
+    #plot raw
+    ax[0].plot(times, l_prices)
+
     #plot ema fast and slow
-    plt.plot(times, l_fast)
-    plt.plot(times, l_slow)
+    ax[0].plot(times, l_fast)
+    ax[0].plot(times, l_slow)
+
+    #plot macd
+    ax[1].hlines(0, times[0], times[-1], color='black') #x axis
+    ax[1].plot(times, cd)
+    ax[1].plot(times, ma)
+    ax[1].plot(times, macd)
+    
     plt.show()
     
 
