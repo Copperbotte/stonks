@@ -36,17 +36,40 @@ def loadData(src="XDGUSD.csv", timescale=60):
 def make_log(data):
     return list(map(np.log, data))
 
+#find exponential moving average
+#ema is a differential value, and has one reduced data point
+#ema2 is a lerp from ema1 and the current value
+#ema is "constant" between dt values based on the previous value
+#mathematically, this makes e^(-St) the lerp value, like fog
+
+def make_ema(t, p, s=3600): #1 hour default ema
+    ema = [p[0]]
+    for i in range(1, len(p)):
+        dt = t[i] - t[i-1]
+        #fog?
+        S = 2.0 / (s+1)
+        e = (ema[-1]-p[i]) * np.exp(-S*dt) + p[i]
+        
+        ema.append(e)
+    return ema
+
 def plots(data):
+    #split xy coords
     np_data = np.array(data)
+    times, prices = np_data[:,0], np_data[:,1]
     
     #process to log
-    np_data[:,1] = make_log(np_data[:,1])
-    
-    #split xy coords
-    x,y = np_data[:,0], np_data[:,1]
+    l_prices = make_log(prices)
 
-    #plot
-    plt.plot(x,y)
+    #plot raw
+    plt.plot(times, l_prices)
+
+    #generate ema
+    ema = make_ema(times, prices, s=3600*24*7) # 1 week ema
+    ema = make_log(ema)
+
+    #plot ema
+    plt.plot(times, ema)
     plt.show()
     
 
