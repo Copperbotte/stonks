@@ -184,25 +184,30 @@ def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, si
             rpos *= -1
         return rpos
 
+    #random walks are performed in log space
     l_mdf = np.log(macdFast)
     l_mds = np.log(macdSlow)
     l_mdl = np.log(macdLag)
 
+    #compute initial value
     times, prices, _,_,_,_, macd = compute_Macd(data, macdFast=macdFast, macdSlow=macdSlow, macdLag=macdLag)
     _,_,c_pct,_ = find_profit(times, prices, macd)
     profit = c_pct[-1]
 
     print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit)
-    
+
     while True:
+        #mutate new parameters
         l_mdf_test = l_mdf + invgauss(sigma)
         l_mds_test = l_mds + invgauss(sigma)
         l_mdl_test = l_mdl + invgauss(sigma)
 
+        #compute test result
         times, prices, _,_,_,_, macd = compute_Macd(data, macdFast=np.exp(l_mdf_test), macdSlow=np.exp(l_mds_test), macdLag=np.exp(l_mdl_test))
         _,_,c_pct,_ = find_profit(times, prices, macd)
         profit_test = c_pct[-1]
 
+        #replace if better
         if profit < profit_test:
             l_mdf = l_mdf_test
             l_mds = l_mds_test
