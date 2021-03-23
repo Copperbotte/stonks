@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
-
-data = None
+import random
 
 def loadData(src="XDGUSD.csv", timescale=60):
     data = None
@@ -105,7 +104,7 @@ def find_profit(time, prices, macd, fee=0.016):
 
     return buys,sells, c_pct,p_pct
 
-def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
+def compute_Macd(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     #split xy coords
     np_data = np.array(data)
     times, prices = np_data[:,0], np_data[:,1]
@@ -118,6 +117,12 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     cd = np.array(fast) - np.array(slow)
     ma = make_ema(times, cd, s=macdLag)
     macd = cd - ma
+
+    return times, prices, fast, slow, cd, ma, macd
+
+def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
+    #compute macd
+    times, prices, fast, slow, cd, ma, macd = compute_Macd(data, macdFast, macdSlow, macdLag)
 
     #find profit using macd intercept strategy
     buys, sells, c_pct, p_pct = find_profit(times, prices, macd)
@@ -171,8 +176,46 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     plt.title(label="profit: " + "{pct:.2f}%".format(pct=c_pct[-1]*100.0))
     
     plt.show()
+
+def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, sigma=0.1):
+    def invgauss(sig=sigma):
+        rpos = sig*np.sqrt(-np.log(1.0-random.random()))
+        if random.random() < 0.5:
+            rpos *= -1
+        return rpos
+
+    l_mdf = np.log(macdFast)
+    l_mds = np.log(macdSlow)
+    l_mdl = np.log(macdLag)
+
+    times, prices, _,_,_,_, macd = compute_Macd(data, macdFast=macdFast, macdSlow=macdSlow, macdLag=macdLag)
+    _,_,c_pct,_ = find_profit(times, prices, macd)
+    profit = c_pct[-1]
+
+    print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit)
+    
+    while True:
+        l_mdf_test = l_mdf + invgauss(sigma)
+        l_mds_test = l_mds + invgauss(sigma)
+        l_mdl_test = l_mdl + invgauss(sigma)
+
+        times, prices, _,_,_,_, macd = compute_Macd(data, macdFast=np.exp(l_mdf_test), macdSlow=np.exp(l_mds_test), macdLag=np.exp(l_mdl_test))
+        _,_,c_pct,_ = find_profit(times, prices, macd)
+        profit_test = c_pct[-1]
+
+        if profit < profit_test:
+            l_mdf = l_mdf_test
+            l_mds = l_mds_test
+            l_mdl = l_mdl_test
+            profit = profit_test
+            print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit)
+    
     
 
+data = None
+
 if __name__ == "__main__":
-    plots(loadData())
+    data = loadData()
+    plots(data)
+    #rndwlk(data) #use with a console based terminal for maximum effect, this function never returns.
     
