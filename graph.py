@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import datetime
 
 data = None
 
@@ -53,6 +54,57 @@ def make_ema(t, p, s=3600): #1 hour default ema
         ema.append(e)
     return ema
 
+def find_profit(time, prices, macd, fee=0.016):
+    #find buys and sells using macd intercept method
+    buys = []
+    sells = []
+    bought = True
+    for i in range(1, len(time)):
+        before = 0 < macd[i-1]
+        after = 0 < macd[i]
+        if before != after:
+            if after:
+                bought = True
+                buys.append([i, int(time[i])])
+            else:
+                bought = False
+                sells.append([i, int(time[i])])
+
+    #find total net gain using this method
+    states = [1,1] #dogecoin has an anomalous price at the start of its history, skips first trade
+    
+    #find first buy
+    while sells[states[1]][1] < buys[states[0]][1]:
+        if states[1] + 1 == len(sells):
+            break
+        states[1] += 1
+
+    c_pct = [1.0] #cumulative pct
+    p_pct = [] #profit pct
+
+    #print("buys", buys)
+    #print("sells", sells)
+    #print("lens", len(buys), len(sells), len(time), len(prices))
+
+    #sell at current price
+    if bought: #sell at current price
+        sells.append([len(time)-1, int(time[-1])])
+
+    #find sell / buy pairs
+    while states[0] != len(buys) and states[1] != len(sells):
+        buyprice = prices[buys[states[0]][0]]
+        sellprice = prices[sells[states[1]][0]]
+        diff = sellprice / buyprice
+        diff *= (1.0 - fee)
+
+        p_pct.append(diff)
+        c_pct.append(c_pct[-1] * diff)
+        
+        states[0] += 1
+        states[1] += 1
+
+    return buys,sells, c_pct,p_pct
+
 def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     #split xy coords
     np_data = np.array(data)
@@ -67,6 +119,9 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     ma = make_ema(times, cd, s=macdLag)
     macd = cd - ma
 
+    #find profit using macd intercept strategy
+    buys, sells, c_pct, p_pct = find_profit(times, prices, macd)
+    
     #to log
     l_prices = make_log(prices)
     l_fast = make_log(fast)
@@ -74,6 +129,12 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
 
     #plot
     fig, ax = plt.subplots(2,1, sharex='col')
+
+    #time formatting
+    def major_formatter(x, pos):
+        return datetime.datetime.utcfromtimestamp(x).strftime('%Y/%m/%d\n%H:%M:%S')
+    for a in ax:
+        a.xaxis.set_major_formatter(major_formatter)
 
     #plot raw
     ax[0].plot(times, l_prices)
@@ -87,6 +148,27 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     ax[1].plot(times, cd)
     ax[1].plot(times, ma)
     ax[1].plot(times, macd)
+
+    #plot buys and sells
+    for i in range(len(ax)):
+        for b in buys:
+            ax[i].axvline(x=b[1], color='green')
+        for s in sells:
+            ax[i].axvline(x=s[1], color='red')
+
+    #annotate sells with percentages gained
+    for s in range(1, len(sells)): #skip first sale
+        st = sells[s][0]
+
+        p = 100.0*(p_pct[s-1] - 1.0)
+        if p_pct[s-1] < 1:
+            p = 100.0*(-1.0 / p_pct[s-1] + 1.0)
+        
+        stext = "{p:.2f}%".format(p=p)
+        ax[0].annotate(text=stext, xy=(times[st], l_prices[st])).set_rotation(45)
+
+    #title the final profit or loss
+    plt.title(label="profit: " + "{pct:.2f}%".format(pct=c_pct[-1]*100.0))
     
     plt.show()
     
