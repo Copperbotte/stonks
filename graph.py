@@ -70,7 +70,7 @@ def find_profit(time, prices, macd, fee=0.016):
                 sells.append([i, int(time[i])])
 
     #find total net gain using this method
-    states = [1,1] #dogecoin has an anomalous price at the start of its history, skips first trade
+    states = [0,0] #dogecoin has an anomalous price at the start of its history, skips first trade
     
     #find first buy
     while sells[states[1]][1] < buys[states[0]][1]:
@@ -162,7 +162,7 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
             ax[i].axvline(x=s[1], color='red')
 
     #annotate sells with percentages gained
-    for s in range(1, len(sells)): #skip first sale
+    for s in range(0, len(sells)): #skip first sale
         st = sells[s][0]
 
         p = 100.0*(p_pct[s-1] - 1.0)
@@ -206,6 +206,12 @@ def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, si
         l_mds_test = l_mds + invgauss(sigma)
         l_mdl_test = l_mdl + invgauss(sigma)
 
+        #swap fast and slow if slow is greater than fast
+        if l_mdf_test < l_mds_test:
+            temp = l_mdf_test
+            l_mdf_test = l_mds_test
+            l_mds_test = temp
+
         #compute test result
         profit_test = computeMacdProfit(data, macdFast=np.exp(l_mdf_test), macdSlow=np.exp(l_mds_test), macdLag=np.exp(l_mdl_test))
 
@@ -217,7 +223,7 @@ def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, si
             profit = profit_test
             print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit)
     
-def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
+def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, shrink=0.5, expand=2.0):
     #nelder-mead optimization, starting with an orthogonal set of vertices, log(param) + 1 per parameter
     #walks are performed in log space
     l_mdf = np.log(macdFast)
@@ -226,9 +232,9 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
 
     #build simplex
     verts =     [[0, l_mdf,   l_mds,   l_mdl]]
-    verts.append([0, l_mdf+1, l_mds,   l_mdl])
-    verts.append([0, l_mdf,   l_mds+1, l_mdl])
-    verts.append([0, l_mdf,   l_mds,   l_mdl+1])
+    verts.append([0, l_mdf+2, l_mds,   l_mdl])
+    verts.append([0, l_mdf,   l_mds-2, l_mdl])
+    verts.append([0, l_mdf,   l_mds,   l_mdl+2])
     
     #find profits in simplex
     for v in range(len(verts)):
@@ -262,6 +268,12 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
         verts[0] = (simp + delta).tolist()
         verts[0][0] = computeMacdProfit(data, macdFast=np.exp(verts[0][1]), macdSlow=np.exp(verts[0][2]), macdLag=np.exp(verts[0][3]))
 
+        #swap fast and slow if slow is greater than fast
+        if verts[0][2] < verts[0][1]:
+            temp = verts[0][1]
+            verts[0][1] = verts[0][2]
+            verts[0][2] = temp
+
         #compare to extremes
         ext = [[verts[0][0], 'N'], [verts[1][0], 'S'], [verts[-1][0], 'L']]
         ext.sort(key=lambda x: x[0])
@@ -274,11 +286,16 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
         #if N is the smallest, shrink new vertex
         offset = 1.0
         if ext[0][1] == 'N':
-            offset = -0.5 
+            offset = -shrink 
         else: #grow to new vertex
-            offset = 2.0
+            offset = expand
 
         verts[0] = (simp + offset*delta).tolist()
+        #swap fast and slow if slow is greater than fast
+        if verts[0][2] < verts[0][1]:
+            temp = verts[0][1]
+            verts[0][1] = verts[0][2]
+            verts[0][2] = temp
         #print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0])
 
 data = None
