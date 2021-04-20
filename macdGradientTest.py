@@ -124,10 +124,70 @@ def plot_profit_grad(seed=400, i_t_b=4000, i_t_s=6000, iters=40, rate=1000000):
     plt.quiver(buys[0], p_b[0], buys[-1]-buys[0], p_b[-1]-p_b[0], scale_units='xy', angles='xy', scale=1, width=0.01)
     plt.quiver(sells[0], p_s[0], sells[-1]-sells[0], p_s[-1]-p_s[0], scale_units='xy', angles='xy', scale=1, width=0.01)
     
+    plt.show()
+
+def plot_grad_descent(seed=400, i_fast=360, i_slow=3600, iters=40, rate=100):
+    random.seed(seed)
+    t,y = genSignal()
+    #t = np.arange(10000)
+    #y = 1000.0*(-np.sin(t*(np.pi/5000)) + 2)
+    plt.plot(t,y)
+
+    ema_f = make_ema(t, y, s=3600)
+    ema_s = make_ema(t, y, s=3600*4)
+    plt.plot(t, ema_f)
+    plt.plot(t, ema_s)
 
     plt.show()
+    return
+
+    #generate profit derivative
+    dy = [0.0] + [a-b for a,b in zip(y[1:], y[:-1])]
+
+    #profit initial state
+    t_b = i_t_b
+    t_s = i_t_s
+
+    profit = y[t_s]/y[t_b]
+    print(t_b, t_s, profit)
+
+    dataset = [[t_b, t_s, profit]]
+
+    #gradient descent loop
+    for i in range(iters):
+        #gradient descent profit func
+        d_s = -profit*(dy[t_s]/y[t_s])
+        d_b =  profit*(dy[t_b]/y[t_b])
+        
+        t_s -= int(rate*d_s)
+        t_b -= int(rate*d_b)
+        if len(y) <= t_s:
+            t_s = len(y) - 1
+        if t_b < 0:
+            t_b = 0
+        
+        profit = y[t_s]/y[t_b]
+        #print(t_b, t_s, profit)
+        dataset.append([t_b, t_s, profit])
+
+    #plot results
+    buys = np.array(dataset)[:,0]
+    sells = np.array(dataset)[:,1]
+
+    p_b = np.array(list(map(lambda x: y[int(x)], buys)))
+    p_s = np.array(list(map(lambda x: y[int(x)], sells)))
     
+    plt.plot(buys, p_b, marker='o', color='red')
+    plt.plot(sells, p_s, marker='o', color='blue')
+    #plt.quiver(buys[:-1], p_b[:-1], buys[1:]-buys[:-1], p_b[1:]-p_b[:-1], scale_units='xy', angles='xy', scale=1)
+    #plt.quiver(sells[:-1], p_s[:-1], sells[1:]-sells[:-1], p_s[1:]-p_s[:-1], scale_units='xy', angles='xy', scale=1)
+    plt.quiver(buys[0], p_b[0], buys[-1]-buys[0], p_b[-1]-p_b[0], scale_units='xy', angles='xy', scale=1, width=0.01)
+    plt.quiver(sells[0], p_s[0], sells[-1]-sells[0], p_s[-1]-p_s[0], scale_units='xy', angles='xy', scale=1, width=0.01)
+    
+    plt.show()
+
 if __name__ == "__main__":
     #plot_one()
     #plot_many()
-    plot_profit_grad()
+    #plot_profit_grad()
+    plot_grad_descent()

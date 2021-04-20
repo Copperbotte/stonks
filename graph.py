@@ -3,7 +3,7 @@ import numpy as np
 import datetime
 import random
 
-def loadData(src="XDGUSD.csv", timescale=60):
+def loadData(src="XDGUSD.csv"):
     data = None
     
     with open(src, 'r') as o:
@@ -11,26 +11,28 @@ def loadData(src="XDGUSD.csv", timescale=60):
         lines = text.split('\n')[:-1] #exclude empty line at the end
         data = [list(map(float, L.split(','))) for L in lines]
 
-        #process data to a target timescale
-        timescale = 60 # 1 minute
-        #timescale = 3600 # 1 hour
-        for i in range(len(data)):
-            data[i][0] = np.floor(data[i][0]/timescale)*timescale
+    return data
 
-        #reprocess data to eliminate multiple trades at a single time
-        data_avgtime = [data[0]]
-        for i in range(1, len(data)):
-            if data[i][0] == data_avgtime[-1][0]:
-                sumValue = data_avgtime[-1][1] * data_avgtime[-1][2]
-                sumValue += data[i][1] * data[i][2] # price * volume = value
-                sumVolume = data_avgtime[-1][2] + data[i][2]
-                avgPrice = sumValue / sumVolume
-                data_avgtime[-1][1] = avgPrice
-                data_avgtime[-1][2] = sumVolume
-            else:
-                data_avgtime.append(data[i])
-        data = data_avgtime
-        
+def processData(data, timescale=60):
+    #process data to a target timescale
+    timescale = 60 # 1 minute
+    #timescale = 3600 # 1 hour
+    for i in range(len(data)):
+        data[i][0] = np.floor(data[i][0]/timescale)*timescale
+
+    #reprocess data to eliminate multiple trades at a single time
+    data_avgtime = [data[0]]
+    for i in range(1, len(data)):
+        if data[i][0] == data_avgtime[-1][0]:
+            sumValue = data_avgtime[-1][1] * data_avgtime[-1][2]
+            sumValue += data[i][1] * data[i][2] # price * volume = value
+            sumVolume = data_avgtime[-1][2] + data[i][2]
+            avgPrice = sumValue / sumVolume
+            data_avgtime[-1][1] = avgPrice
+            data_avgtime[-1][2] = sumVolume
+        else:
+            data_avgtime.append(data[i])
+    data = data_avgtime
     return data
 
 def make_log(data):
@@ -302,6 +304,7 @@ data = None
 
 if __name__ == "__main__":
     data = loadData()
+    data = processData(data)
     plots(data)
     #rndwlk(data) #use with a console based terminal for maximum effect, this function never returns.
     
