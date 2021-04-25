@@ -44,6 +44,74 @@ def getData(since=None):
     data = json.loads(r.text)
     return data
 
+#updates current .csv file to match remote data
+def updateData(path="XDGUSD.csv"):
+    R = None
+    #read file
+    with open(path, 'r') as o:
+        R = o.read()
+    if R == None:
+        return
+    #valid file found
+    entries = R.split('\n')
+    entries = list(filter(None, entries))
+
+    collection = 0
+
+    #loop until data is fully updated
+    while True:
+        #find first entry with latest time
+        final = entries[-1].split(',')
+        offset = 0
+        for i in range(1000):
+            test = entries[-1 - i].split(',')
+            if int(test[0]) != int(final[0]):
+                #print("broke at", i)
+                offset = i
+                break
+            final = test
+        
+        #get next batch of data
+        result = getData(since=final[0])
+        if result['error']:
+            print("error:", result['error'])
+
+        data = result['result']['XDGUSD']
+        
+
+        #convert data into storage format
+        conv = [[int(x[2])] + x[0:2] for x in data] #rearrange
+        conv = [list(map(str, x)) for x in conv]    #to string
+        conv = [",".join(x) for x in conv]          #to csv
+
+        #merge with previous dataset
+        entries += conv[offset:]
+        dc = len(conv[offset:])
+        collection += dc
+        print("updated", dc)
+
+        #repeat until the final time is within 5 minutes of the current time
+        latest = float(result['result']['last']) / 1e9
+        dt = time.time() - latest
+
+        #display current time behind
+        ddate = datetime.timedelta(seconds=dt)
+        days = ddate.days
+        hours, mins = divmod(ddate.seconds, 3600)
+        mins, secs = divmod(mins, 60)
+        
+        print("time behind: %s days, %s hours, %s minutes, %s seconds" % (days, hours, mins, secs))
+        if dt < 60:
+            break
+
+        #prevent a timeout
+        time.sleep(3)
+
+    print("updated a total of", collection, "entries")
+    with open(path, "w") as o:
+        for e in entries:
+            o.write(e + '\n')
+
 def toGraphFormat(data):
     print("last", data['result']['last'])
     data = data['result']['XDGUSD']
@@ -77,7 +145,7 @@ def getActiveTrades(APIKey, otp):
     url = "https://api.kraken.com/0/private/OpenOrders"
     urlpath = url[len('https://api.kraken.com'):]
     
-    seckey = base64.b64decode(loadAPIKey('krakenKeySecret.txt'))'
+    seckey = base64.b64decode(loadAPIKey('krakenKeySecret.txt'))
     
     if True:
 
@@ -123,6 +191,7 @@ def getActiveTrades(APIKey, otp):
     
     return data
 
+#uses getActiveTrades to build a complete trade history, 50 at a time.
 def getCompleteTradeHistory(n=637):
     returns = []
 
@@ -145,6 +214,7 @@ def getCompleteTradeHistory(n=637):
 
     return returns
 
+#processes results of getCompleteTradeHistory to a sorted list of trades, by time.
 def processData(data):
     #merge dicts
     merge = dict()
@@ -160,6 +230,7 @@ def processData(data):
     l_d.sort(key=lambda x: x[1]['time'])
     return l_d
 
+#merges trades based on a time window.
 def averageWindow(processed, window=30):
     out = []
     cur = None
