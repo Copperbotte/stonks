@@ -3,6 +3,8 @@
 ETH.zip
 ETHUSD.csv
 graph_old.py
+krakenKey.txt
+krakenKeySecret.txt
 LTCUSD.csv
 logs.py
 XBTUSD.csv
