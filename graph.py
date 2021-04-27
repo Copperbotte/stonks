@@ -2,6 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import random
+#from client import criterion, bankroll_game #circular import
+
+def criterion(win=2.0, lose=0.5, pwin=1/3, plose=2/3):
+    return plose/(1-win) + pwin/(1-lose)
+def bankroll_game(win=2.0, lose=0.5, pwin=1/3, plose=2/3, bankroll=1):
+    return np.power((win-1)*bankroll + 1, pwin)*np.power((lose-1)*bankroll + 1, plose)
 
 def loadData(src="XDGUSD.csv"):
     data = None
@@ -11,7 +17,7 @@ def loadData(src="XDGUSD.csv"):
         lines = text.split('\n')[:-1] #exclude empty line at the end
         data = [list(map(float, L.split(','))) for L in lines]
 
-    return data
+    return data[100:]
 
 def processData(data, timescale=60):
     #process data to a target timescale
@@ -104,7 +110,18 @@ def find_profit(time, prices, macd, fee=0.016):
         states[0] += 1
         states[1] += 1
 
-    return buys,sells, c_pct,p_pct
+    #find data for kelly criterion
+    p_wins = list(filter(lambda x: 1 < x, p_pct))
+    p_lose = list(filter(lambda x: x <= 1, p_pct))
+    avg_gain = np.exp(sum(map(np.log, p_wins)) / len(p_wins))#multiplicitive average
+    avg_loss = np.exp(sum(map(np.log, p_lose)) / len(p_lose))
+    win_pct = len(p_wins) / len(p_pct)
+    lose_pct = 1-win_pct
+    #print(avg_gain, avg_loss, win_pct, lose_pct)
+    bankroll = criterion(win=avg_gain, lose=avg_loss, pwin=win_pct, plose=lose_pct)
+    #print(bankroll)
+    
+    return buys,sells, c_pct,p_pct, bankroll
 
 def compute_Macd(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     #split xy coords
@@ -127,7 +144,8 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     times, prices, fast, slow, cd, ma, macd = compute_Macd(data, macdFast, macdSlow, macdLag)
 
     #find profit using macd intercept strategy
-    buys, sells, c_pct, p_pct = find_profit(times, prices, macd)
+    buys, sells, c_pct, p_pct, bankroll = find_profit(times, prices, macd)
+    print(bankroll)
     
     #to log
     l_prices = make_log(prices)
@@ -181,8 +199,8 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
 
 def computeMacdProfit(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     times, prices, _,_,_,_, macd = compute_Macd(data, macdFast=macdFast, macdSlow=macdSlow, macdLag=macdLag)
-    _,_,c_pct,_ = find_profit(times, prices, macd)
-    return c_pct[-1]
+    _,_,c_pct,_,br = find_profit(times, prices, macd)
+    return c_pct[-1], br
     
 
 def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, sigma=0.1):
@@ -198,9 +216,9 @@ def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, si
     l_mdl = np.log(macdLag)
 
     #compute initial value
-    profit = computeMacdProfit(data, macdFast=macdFast, macdSlow=macdSlow, macdLag=macdLag)
+    profit, br = computeMacdProfit(data, macdFast=macdFast, macdSlow=macdSlow, macdLag=macdLag)
 
-    print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit)
+    print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit, "bankroll:", br)
 
     while True:
         #mutate new parameters
@@ -215,7 +233,7 @@ def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, si
             l_mds_test = temp
 
         #compute test result
-        profit_test = computeMacdProfit(data, macdFast=np.exp(l_mdf_test), macdSlow=np.exp(l_mds_test), macdLag=np.exp(l_mdl_test))
+        profit_test, br = computeMacdProfit(data, macdFast=np.exp(l_mdf_test), macdSlow=np.exp(l_mds_test), macdLag=np.exp(l_mdl_test))
 
         #replace if better
         if profit < profit_test:
@@ -223,7 +241,7 @@ def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, si
             l_mds = l_mds_test
             l_mdl = l_mdl_test
             profit = profit_test
-            print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit)
+            print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit, "bankroll:", br)
     
 def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, shrink=0.5, expand=2.0):
     #nelder-mead optimization, starting with an orthogonal set of vertices, log(param) + 1 per parameter
@@ -240,8 +258,8 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
     
     #find profits in simplex
     for v in range(len(verts)):
-        verts[v][0] = computeMacdProfit(data, macdFast=np.exp(verts[v][1]), macdSlow=np.exp(verts[v][2]), macdLag=np.exp(verts[v][3]))
-        print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0])
+        verts[v][0], br = computeMacdProfit(data, macdFast=np.exp(verts[v][1]), macdSlow=np.exp(verts[v][2]), macdLag=np.exp(verts[v][3]))
+        print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0], "bankroll:", br)
 
     bestProfit = 0.0
     
@@ -252,13 +270,14 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
     #if its between the other two, no further transforms are needed
     #if its the worst performer, shrink the vertex through the centroid
     #if its the best performer, expand the vertex through the centroid
+    br = 0
     while True:
         #find worst performing vertex
         verts.sort(key=lambda x: x[0])
         bP = verts[-1][0]
         if bestProfit < bP:
             bestProfit = bP
-            print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0])
+            print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0], "bankroll:", br)
             
         #find simplex of all other vertices
         simp = np.array([0.0,0.0,0.0,0.0])
@@ -268,7 +287,7 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
         #adjust vertex
         delta = simp - np.array(verts[0])
         verts[0] = (simp + delta).tolist()
-        verts[0][0] = computeMacdProfit(data, macdFast=np.exp(verts[0][1]), macdSlow=np.exp(verts[0][2]), macdLag=np.exp(verts[0][3]))
+        verts[0][0], br = computeMacdProfit(data, macdFast=np.exp(verts[0][1]), macdSlow=np.exp(verts[0][2]), macdLag=np.exp(verts[0][3]))
 
         #swap fast and slow if slow is greater than fast
         if verts[0][2] < verts[0][1]:
