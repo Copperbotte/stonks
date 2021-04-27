@@ -63,65 +63,87 @@ def make_ema(t, p, s=3600): #1 hour default ema
 
 def find_profit(time, prices, macd, fee=0.016):
     #find buys and sells using macd intercept method
-    buys = []
-    sells = []
-    bought = True
-    for i in range(1, len(time)):
+
+    #find first state
+    first = None
+    #first = 'buy'
+    #if macd[0] < 0:
+    #    first = 'sell'
+
+    #macd will never perform a buy without a next corresponding sell, as these are intercepts.
+    #if the intercept touches the x axis threshold, it'll immidiately buy and sell.
+    #if the sequence starts below the x axis, the next action is a buy, so a sell should occur first.
+    #weather this is a buy or a sell depends on the value of first
+    #sequence = [ [0, int(time[0])] ]
+    sequence = []
+
+    for i in range(1, len(time)): #skip the first datapoint, used for a derivative
         before = 0 < macd[i-1]
         after = 0 < macd[i]
         if before != after:
-            if after:
-                bought = True
-                buys.append([i, int(time[i])])
-            else:
-                bought = False
-                sells.append([i, int(time[i])])
+            sequence.append([i, int(time[i])])
 
-    #find total net gain using this method
-    states = [0,0] #dogecoin has an anomalous price at the start of its history, skips first trade
+            #find first state
+            if len(sequence) == 1:
+                if 0 < macd[i] - macd[i-1]:
+                    first = "buy"
+                else:
+                    first = "sell"
+
+    #append final sale
+    sequence += [ [-1, int(time[-1])] ]
     
-    #find first buy
-    while sells[states[1]][1] < buys[states[0]][1]:
-        if states[1] + 1 == len(sells):
-            break
-        states[1] += 1
+    #find gains per each step in the sequence
+    ps_pct = [] #profit percent, with shorts
+    p_pct = [] #profit percent, without shorts
+    cs_pct = [1.0] #cumulative profit percent, with shorts
+    c_pct = [1.0] #cumulative profit percent, without shorts 
 
-    c_pct = [1.0] #cumulative pct
-    p_pct = [] #profit pct
-
-    #print("buys", buys)
-    #print("sells", sells)
-    #print("lens", len(buys), len(sells), len(time), len(prices))
-
-    #sell at current price
-    if bought: #sell at current price
-        sells.append([len(time)-1, int(time[-1])])
-
-    #find sell / buy pairs
-    while states[0] != len(buys) and states[1] != len(sells):
-        buyprice = prices[buys[states[0]][0]]
-        sellprice = prices[sells[states[1]][0]]
-        diff = sellprice / buyprice
-        diff *= (1.0 - fee)
-
-        p_pct.append(diff)
-        c_pct.append(c_pct[-1] * diff)
+    #always use sell/buy, but raise it to the -1st power for each subsequent item
+    #this is the same as a boolean 1/pct
+    short = False
+    if first == 'sell':
+        short = True
         
-        states[0] += 1
-        states[1] += 1
+    for b, s in zip(sequence[:-1], sequence[1:]):
+        buyprice = prices[b[0]]
+        sellprice = prices[s[0]]
+        pct = sellprice / buyprice
+        if short:
+            pct = buyprice / sellprice
+        pct *= 1 - fee
+        
+        ps_pct.append(pct)
+        cs_pct.append(cs_pct[-1] * pct)
+        if not short:
+            p_pct.append(pct)
+            c_pct.append(c_pct[-1] * pct)
 
+        #print("b", b, "s", s, "spct", pct, "short", short)
+            
+        short = not short
+    
     #find data for kelly criterion
-    p_wins = list(filter(lambda x: 1 < x, p_pct))
-    p_lose = list(filter(lambda x: x <= 1, p_pct))
+    p_wins = list(filter(lambda x: 1 < x, ps_pct))
+    p_lose = list(filter(lambda x: x <= 1, ps_pct))
     avg_gain = np.exp(sum(map(np.log, p_wins)) / len(p_wins))#multiplicitive average
     avg_loss = np.exp(sum(map(np.log, p_lose)) / len(p_lose))
-    win_pct = len(p_wins) / len(p_pct)
+    win_pct = len(p_wins) / len(ps_pct)
     lose_pct = 1-win_pct
     #print(avg_gain, avg_loss, win_pct, lose_pct)
     bankroll = criterion(win=avg_gain, lose=avg_loss, pwin=win_pct, plose=lose_pct)
     #print(bankroll)
+    #print('\n', cs_pct[-1])
+
+    #split buys and sells to gel with other algos
+    if first == 'buy':
+        buys = sequence[::2]
+        sells = sequence[1::2]
+    else:
+        buys = sequence[1::2]
+        sells = sequence[::2]
     
-    return buys,sells, c_pct,p_pct, bankroll
+    return buys,sells, c_pct,p_pct, bankroll,cs_pct[-1]
 
 def compute_Macd(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     #split xy coords
@@ -139,13 +161,16 @@ def compute_Macd(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24
 
     return times, prices, fast, slow, cd, ma, macd
 
-def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
+def plots(data, #macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
+    macdFast=660571, macdSlow=1572479, macdLag=329809):
     #compute macd
     times, prices, fast, slow, cd, ma, macd = compute_Macd(data, macdFast, macdSlow, macdLag)
 
     #find profit using macd intercept strategy
-    buys, sells, c_pct, p_pct, bankroll = find_profit(times, prices, macd)
-    print(bankroll)
+    buys, sells, c_pct, p_pct, bankroll, s_pct = find_profit(times, prices, macd)
+    print("bankroll:", bankroll)
+    print("earnings: {p:.5f}%".format(p=c_pct[-1]*100))
+    print("earnings with shorts: {p:.5f}%".format(p=s_pct*100))
     
     #to log
     l_prices = make_log(prices)
@@ -181,13 +206,27 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
         for s in sells:
             ax[i].axvline(x=s[1], color='red')
 
-    #annotate sells with percentages gained
-    for s in range(0, len(sells)): #skip first sale
-        st = sells[s][0]
+    #these prints below should be debugs, can't pass locals in efficiently
+    #def debug(expression):
+    #    print(expression, eval(expression))
 
-        p = 100.0*(p_pct[s-1] - 1.0)
-        if p_pct[s-1] < 1:
-            p = 100.0*(-1.0 / p_pct[s-1] + 1.0)
+    #annotate sells with percentages gained
+    #offset is 1 if there's an initial short
+    offset = 0
+    if sells[0][0] < buys[0][0]:
+        offset = 1
+
+    #print("debugging")
+    #print("offset", offset)
+    #print("len(sells)", len(sells))
+    #print("len(p_pct)", len(sells))
+    
+    for s, pct in zip(sells[offset:], p_pct[offset:]):
+        st = s[0]
+        
+        p = 100.0*(pct - 1.0)
+        if pct < 1:
+            p = 100.0*(1.0 - (1.0 / pct))
         
         stext = "{p:.2f}%".format(p=p)
         ax[0].annotate(text=stext, xy=(times[st], l_prices[st])).set_rotation(45)
@@ -199,8 +238,8 @@ def plots(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
 
 def computeMacdProfit(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     times, prices, _,_,_,_, macd = compute_Macd(data, macdFast=macdFast, macdSlow=macdSlow, macdLag=macdLag)
-    _,_,c_pct,_,br = find_profit(times, prices, macd)
-    return c_pct[-1], br
+    _,_,c_pct,_,br,s_pct = find_profit(times, prices, macd)
+    return s_pct, br
     
 
 def rndwlk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, sigma=0.1):
@@ -322,7 +361,7 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
 data = None
 
 if __name__ == "__main__":
-    data = loadData()
+    data = loadData()#"XDGUSD_original.csv")
     data = processData(data)
     plots(data)
     #rndwlk(data) #use with a console based terminal for maximum effect, this function never returns.
