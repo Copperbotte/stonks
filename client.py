@@ -302,6 +302,8 @@ t_p = None
 
 if __name__ == "__main__":
     APIKey = loadAPIKey()
+    updateData()
+    
     trades = getCompleteTradeHistory()
     t_p = processData(trades)
     a_w = averageWindow(t_p, window=150)

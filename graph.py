@@ -9,7 +9,7 @@ def criterion(win=2.0, lose=0.5, pwin=1/3, plose=2/3):
 def bankroll_game(win=2.0, lose=0.5, pwin=1/3, plose=2/3, bankroll=1):
     return np.power((win-1)*bankroll + 1, pwin)*np.power((lose-1)*bankroll + 1, plose)
 
-def loadData(src="XDGUSD.csv"):
+def loadData(src="XDGUSD.csv", timefrom=1577291768):
     data = None
     
     with open(src, 'r') as o:
@@ -17,7 +17,14 @@ def loadData(src="XDGUSD.csv"):
         lines = text.split('\n')[:-1] #exclude empty line at the end
         data = [list(map(float, L.split(','))) for L in lines]
 
-    return data[100:]
+    #find the first datapoint at or later than the given timefrom
+    s = 0
+    for i in range(len(data)):
+        if timefrom <= data[i][0]:
+            s = i
+            break
+    
+    return data[s:]
 
 def processData(data, timescale=60):
     #process data to a target timescale
@@ -290,10 +297,10 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
     l_mdl = np.log(macdLag)
 
     #build simplex
-    verts =     [[0, l_mdf,   l_mds,   l_mdl]]
-    verts.append([0, l_mdf+2, l_mds,   l_mdl])
-    verts.append([0, l_mdf,   l_mds-2, l_mdl])
-    verts.append([0, l_mdf,   l_mds,   l_mdl+2])
+    verts =     [[0, l_mdf,    l_mds,    l_mdl]]
+    verts.append([0, l_mdf+0.5,l_mds,    l_mdl])
+    verts.append([0, l_mdf,    l_mds-0.5,l_mdl])
+    verts.append([0, l_mdf,    l_mds,    l_mdl+0.5])
     
     #find profits in simplex
     for v in range(len(verts)):
@@ -340,7 +347,7 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
 
         #if N is in the middle: use new simplex
         if ext[1][1] == 'N':
-            #print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0])
+            print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0])
             continue
 
         #if N is the smallest, shrink new vertex
@@ -356,12 +363,13 @@ def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
             temp = verts[0][1]
             verts[0][1] = verts[0][2]
             verts[0][2] = temp
-        #print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0])
+        print("macdFast="+str(np.exp(verts[v][1]))+',', "macdSlow="+str(np.exp(verts[v][2]))+',', "macdLag="+str(np.exp(verts[v][3])), "profit:", verts[v][0])
 
 data = None
 
 if __name__ == "__main__":
-    data = loadData()#"XDGUSD_original.csv")
+    timefrom = datetime.datetime(2021,1,1).timestamp()
+    data = loadData(timefrom=timefrom)#"XDGUSD_original.csv")
     data = processData(data)
     plots(data)
     #rndwlk(data) #use with a console based terminal for maximum effect, this function never returns.
