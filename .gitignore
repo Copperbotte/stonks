@@ -2,7 +2,8 @@
 *.pyo
 ETH.zip
 ETHUSD.csv
-graph_old.py
+graph_v1.py
+graph_v2.py
 krakenKey.txt
 krakenKeySecret.txt
 LTCUSD.csv
