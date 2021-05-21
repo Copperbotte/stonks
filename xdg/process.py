@@ -92,14 +92,18 @@ def find_profit(time, prices, macd, fee=0.0016):
     #find data for kelly criterion
     p_wins = list(filter(lambda x: 1 < x, ps_pct))
     p_lose = list(filter(lambda x: x <= 1, ps_pct))
-    avg_gain = np.exp(sum(map(np.log, p_wins)) / len(p_wins))#multiplicitive average
-    avg_loss = np.exp(sum(map(np.log, p_lose)) / len(p_lose))
-    win_pct = len(p_wins) / len(ps_pct)
-    lose_pct = 1-win_pct
-    #print(avg_gain, avg_loss, win_pct, lose_pct)
-    bankroll = criterion(win=avg_gain, lose=avg_loss, pwin=win_pct, plose=lose_pct)
-    #print(bankroll)
-    #print('\n', cs_pct[-1])
+
+    if len(p_wins) and len(p_lose):
+        avg_gain = np.exp(sum(map(np.log, p_wins)) / len(p_wins))#multiplicitive average
+        avg_loss = np.exp(sum(map(np.log, p_lose)) / len(p_lose))
+        win_pct = len(p_wins) / len(ps_pct)
+        lose_pct = 1-win_pct
+        #print(avg_gain, avg_loss, win_pct, lose_pct)
+        bankroll = criterion(win=avg_gain, lose=avg_loss, pwin=win_pct, plose=lose_pct)
+        #print(bankroll)
+        #print('\n', cs_pct[-1])
+    else:
+        bankroll = 0
 
     #split buys and sells to gel with other algos
     if first == 'buy':
