@@ -13,6 +13,8 @@ import time
 import urllib
 import krakenex
 
+#todo: remove excess imports from this list
+
 from xdg import processData, plots
 
 from xdg import loadFile, loadData, saveFile, parseFile, clipFile
