@@ -47,8 +47,9 @@ def fresh(days=48, macdFast=51183.07765162355, macdSlow=68970.07412787144, macdL
     xdg.plots(data, macdFast, macdSlow, macdLag)     #plot
 
 if __name__ == "__main__":
-    data = xdg.client.getData()
-    data = xdg.client.toGraphFormat(data)
-    data = xdg.load.processData(data)
-    xdg.plots(data)
+    fresh()
+    #data = xdg.client.getData()
+    #data = xdg.client.toGraphFormat(data)
+    #data = xdg.load.processData(data)
+    #xdg.plots(data)
     #data = asyncio.get_event_loop().run_until_complete(getDataws())

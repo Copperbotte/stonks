@@ -10,6 +10,10 @@ def criterion(win=2.0, lose=0.5, pwin=1/3, plose=2/3):
 def bankroll_game(win=2.0, lose=0.5, pwin=1/3, plose=2/3, bankroll=1):
     return np.power((win-1)*bankroll + 1, pwin)*np.power((lose-1)*bankroll + 1, plose)
 
+#def plots(data, tradefunc):
+#    #find profit using tradefunc intercept strategy
+    
+
 def plots(data, #macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7):
     macdFast=660571, macdSlow=1572479, macdLag=329809):
     #compute macd

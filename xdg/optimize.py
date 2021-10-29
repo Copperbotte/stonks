@@ -26,6 +26,8 @@ def randomWalk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
 
     print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit, "bankroll:", br)
 
+    attempts = 0
+
     while True:
         #mutate new parameters
         l_mdf_test = l_mdf + invgauss(sigma)
@@ -40,7 +42,8 @@ def randomWalk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
 
         #compute test result
         profit_test, br = computeMacdProfit(data, macdFast=np.exp(l_mdf_test), macdSlow=np.exp(l_mds_test), macdLag=np.exp(l_mdl_test))
-
+        attempts += 1
+        
         #replace if better
         if profit < profit_test:
             l_mdf = l_mdf_test
@@ -48,6 +51,8 @@ def randomWalk(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7
             l_mdl = l_mdl_test
             profit = profit_test
             print("macdFast="+str(np.exp(l_mdf))+',', "macdSlow="+str(np.exp(l_mds))+',', "macdLag="+str(np.exp(l_mdl)), "profit:", profit, "bankroll:", br)
+            print("attempts:", attempts)
+            attempts = 0
     
 def nelderMead(data, macdFast=3600*24*7, macdSlow=3600*24*7*4, macdLag=3600*24*7, shrink=0.5, expand=2.0):
     #nelder-mead optimization, starting with an orthogonal set of vertices, log(param) + 1 per parameter

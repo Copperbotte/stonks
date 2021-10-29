@@ -43,11 +43,11 @@ def find_profit(time, prices, macd, fee=0.0016):
     #sequence = [ [0, int(time[0])] ]
     sequence = []
 
-    for i in range(1, len(time)): #skip the first datapoint, used for a derivative
+    for i, t in enumerate(time[1:], 1):#skip the first datapoint, used for a derivative
         before = 0 < macd[i-1]
         after = 0 < macd[i]
         if before != after:
-            sequence.append([i, int(time[i])])
+            sequence.append([i, int(t)])
 
             #find first state
             if len(sequence) == 1:
